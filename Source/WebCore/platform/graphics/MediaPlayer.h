@@ -121,6 +121,9 @@ struct MediaEngineSupportParameters {
     ContentType type;
     URL url;
     String keySystem;
+    unsigned int channels;
+    FloatSize dimension;
+    float framerate;
     bool isMediaSource { false };
     bool isMediaStream { false };
     Vector<ContentType> contentTypesRequiringHardwareSupport;

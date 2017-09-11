@@ -134,6 +134,13 @@ using namespace std;
 
 namespace WebCore {
 
+#if ENABLE(NATIVE_AUDIO)
+static const GstStreamVolumeFormat VOLUME_FORMAT = GST_STREAM_VOLUME_FORMAT_LINEAR;
+#else
+static const GstStreamVolumeFormat VOLUME_FORMAT = GST_STREAM_VOLUME_FORMAT_CUBIC;
+#endif
+
+
 void registerWebKitGStreamerElements()
 {
     if (!webkitGstCheckVersion(1, 6, 1))
@@ -592,6 +599,13 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
     if (!getVideoSizeAndFormatFromCaps(caps.get(), originalSize, format, pixelAspectRatioNumerator, pixelAspectRatioDenominator, stride))
         return FloatSize();
 
+    // Sanity check for the unlikely, but reproducible case when getVideoSizeAndFormatFromCaps returns incorrect values
+    if ((originalSize.width() == 0) || (originalSize.height() == 0)
+       || (pixelAspectRatioNumerator == 0) || (pixelAspectRatioNumerator == 0)) {
+        GST_DEBUG("getVideoSizeAndFormatFromCaps returned an invalid info, returning an empty size");
+        return FloatSize();
+    }
+
 #if USE(TEXTURE_MAPPER_GL)
     // When using accelerated compositing, if the video is tagged as rotated 90 or 270 degrees, swap width and height.
     if (m_renderingCanBeAccelerated) {
@@ -639,7 +653,7 @@ void MediaPlayerPrivateGStreamerBase::setVolume(float volume)
         return;
 
     GST_DEBUG("Setting volume: %f", volume);
-    gst_stream_volume_set_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_CUBIC, static_cast<double>(volume));
+    gst_stream_volume_set_volume(m_volumeElement.get(), VOLUME_FORMAT, static_cast<double>(volume));
 }
 
 float MediaPlayerPrivateGStreamerBase::volume() const
@@ -647,7 +661,7 @@ float MediaPlayerPrivateGStreamerBase::volume() const
     if (!m_volumeElement)
         return 0;
 
-    return gst_stream_volume_get_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_CUBIC);
+    return gst_stream_volume_get_volume(m_volumeElement.get(), VOLUME_FORMAT);
 }
 
 
@@ -656,7 +670,7 @@ void MediaPlayerPrivateGStreamerBase::notifyPlayerOfVolumeChange()
     if (!m_player || !m_volumeElement)
         return;
     double volume;
-    volume = gst_stream_volume_get_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_CUBIC);
+    volume = gst_stream_volume_get_volume(m_volumeElement.get(), VOLUME_FORMAT);
     // get_volume() can return values superior to 1.0 if the user
     // applies software user gain via third party application (GNOME
     // volume control for instance).
@@ -666,8 +680,10 @@ void MediaPlayerPrivateGStreamerBase::notifyPlayerOfVolumeChange()
 
 void MediaPlayerPrivateGStreamerBase::volumeChangedCallback(MediaPlayerPrivateGStreamerBase* player)
 {
+#if PLATFORM(WPE)
     // This is called when m_volumeElement receives the notify::volume signal.
     GST_DEBUG("Volume changed to: %f", player->volume());
+#endif
 
     player->m_notifier->notify(MainThreadNotification::VolumeChanged, [player] { player->notifyPlayerOfVolumeChange(); });
 }
@@ -910,7 +926,15 @@ GstFlowReturn MediaPlayerPrivateGStreamerBase::newPrerollCallback(GstElement* si
 void MediaPlayerPrivateGStreamerBase::clearCurrentBuffer()
 {
     WTF::GMutexLocker<GMutex> lock(m_sampleMutex);
-    m_sample.clear();
+
+    // Replace by a new sample having only the caps, so this dummy sample is still useful to get the dimensions.
+    // This prevents resizing problems when the video changes its quality and a DRAIN is performed.
+    const GstStructure* info = gst_sample_get_info(m_sample.get());
+    GstStructure* infoCopy = nullptr;
+    if (info)
+        infoCopy = gst_structure_copy(info);
+    m_sample = adoptGRef(gst_sample_new(nullptr, gst_sample_get_caps(m_sample.get()),
+        gst_sample_get_segment(m_sample.get()), infoCopy));
 
     {
         LockHolder locker(m_platformLayerProxy->lock());
@@ -1189,7 +1213,7 @@ GstElement* MediaPlayerPrivateGStreamerBase::createVideoSinkGL()
         player->clearCurrentBuffer();
         return GST_PAD_PROBE_OK;
      }, this, nullptr);
- 
+
      g_object_set_data(G_OBJECT(appsink), "player", (gpointer) this);
      gst_pad_set_query_function(pad.get(), appSinkSinkQuery);
 
@@ -1257,7 +1281,7 @@ void MediaPlayerPrivateGStreamerBase::setStreamVolumeElement(GstStreamVolume* vo
     // https://bugs.webkit.org/show_bug.cgi?id=118974 for more information.
     if (!m_player->platformVolumeConfigurationRequired()) {
         GST_DEBUG("Setting stream volume to %f", m_player->volume());
-        g_object_set(m_volumeElement.get(), "volume", m_player->volume(), nullptr);
+        setVolume(m_player->volume());
     } else
         GST_DEBUG("Not setting stream volume, trusting system one");
 

@@ -984,4 +984,3 @@ void CachedResourceStreamingClient::loadFinished(PlatformMediaResource&)
 }
 
 #endif // USE(GSTREAMER)
-

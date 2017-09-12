@@ -859,7 +859,7 @@ bool MediaSource::isTypeSupported(const String& type)
         return false;
 
     bool ok;
-    unsigned int channels = contentType.parameter("channels").toUInt(&ok);
+    unsigned channels = contentType.parameter("channels").toUInt(&ok);
     if (!ok)
         channels = 0;
 

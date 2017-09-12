@@ -310,17 +310,17 @@ void MediaPlayerPrivateGStreamer::commitLoad()
 // utility function for bcm nexus seek functionality
 static GstElement* findVideoDecoder(GstElement *element)
 {
-    GstElement *re = NULL;
+    GstElement *re = nullptr;
     if (GST_IS_BIN(element)) {
         GstIterator* it = gst_bin_iterate_elements(GST_BIN(element));
         GValue item = G_VALUE_INIT;
         bool done = false;
-        while(!done) {
+        while (!done) {
             switch (gst_iterator_next(it, &item)) {
                 case GST_ITERATOR_OK:
                 {
                     GstElement *next = GST_ELEMENT(g_value_get_object(&item));
-                    done = (re = findVideoDecoder(next)) != NULL;
+                    done = (re = findVideoDecoder(next));
                     g_value_reset (&item);
                     break;
                 }
@@ -484,7 +484,7 @@ void MediaPlayerPrivateGStreamer::play()
         m_delayingLoad = false;
         m_preload = MediaPlayer::Auto;
         // Make sure we properly detect live stream on play.
-        if(!isMediaSource())
+        if (!isMediaSource())
             totalBytes();
         setDownloadBuffering();
         GST_DEBUG("Play");
@@ -1433,7 +1433,7 @@ float MediaPlayerPrivateGStreamer::maxTimeLoaded() const
         return 0.0f;
 
     float loaded = m_maxTimeLoaded;
-    if (!loaded && !m_fillTimer.isActive()){
+    if (!loaded && !m_fillTimer.isActive()) {
         if (m_cachedPosition > 0)
             loaded = m_cachedPosition;
         else if (m_durationAtEOS)

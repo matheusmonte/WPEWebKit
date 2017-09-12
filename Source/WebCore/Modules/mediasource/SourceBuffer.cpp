@@ -895,8 +895,7 @@ void SourceBuffer::evictCodedFrames(size_t newDataSize)
     // This algorithm is run to free up space in this source buffer when new data is appended.
     // 1. Let new data equal the data that is about to be appended to this SourceBuffer.
     // 2. If the buffer full flag equals false, then abort these steps.
-    if (!m_bufferFull)
-    {
+    if (!m_bufferFull) {
         LOG(MediaSource, "SourceBuffer::evictCodedFrames(%p) - buffer is not full, current buffer size %zu", this, extraMemoryCost());
         return;
     }
@@ -951,7 +950,7 @@ void SourceBuffer::evictCodedFrames(size_t newDataSize)
             }
         }
 
-        if (m_bufferFull == false)
+        if (!m_bufferFull)
             break;
 
         rangeStart += thirtySeconds;
@@ -997,8 +996,7 @@ void SourceBuffer::evictCodedFrames(size_t newDataSize)
     LOG(MediaSource, "SourceBuffer::evictCodedFrames(%p) - minimumRangeStart: %f, duration: %f", this, minimumRangeStart.toDouble(), m_source->duration().toDouble());
 
     auto removeFramesWhileFull = [&] (PlatformTimeRanges& ranges) {
-        for (int i = ranges.length()-1; i >= 0; --i)
-        {
+        for (int i = ranges.length()-1; i >= 0; --i) {
             LOG(MediaSource, "SourceBuffer::evictCodedFrames(%p) - removing coded frames in range [%f, %f)", this, ranges.start(i).toDouble(), ranges.end(i).toDouble());
             removeCodedFrames(ranges.start(i), ranges.end(i));
             if (extraMemoryCost() + newDataSize < maximumBufferSize) {
@@ -1021,15 +1019,14 @@ void SourceBuffer::evictCodedFrames(size_t newDataSize)
 
         removeFramesWhileFull(intersectedRanges);
 
-        if (m_bufferFull == false)
+        if (!m_bufferFull)
             break;
 
         rangeStart -= thirtySeconds;
         rangeEnd -= thirtySeconds;
     }
 
-    if (m_bufferFull && currentTimeRange == notFound)
-    {
+    if (m_bufferFull && currentTimeRange == notFound) {
         LOG(MediaSource, "SourceBuffer::evictCodedFrames(%p) - We tried hard to evict, but the buffer is still full and current time is unbuffered, let's try to remove more buffered data.", this);
         removeFramesWhileFull(buffered);
     }
@@ -1081,11 +1078,11 @@ static void maximumBufferSizeDefaults(size_t& maxBufferSizeVideo, size_t& maxBuf
         }
     }
 
-    if (maxBufferSizeAudio == 0)
+    if (!maxBufferSizeAudio)
         maxBufferSizeAudio = 3 * 1024 * 1024;
-    if (maxBufferSizeVideo == 0)
+    if (!maxBufferSizeVideo)
         maxBufferSizeVideo = 30 * 1024 * 1024;
-    if (maxBufferSizeText == 0)
+    if (!maxBufferSizeText)
         maxBufferSizeText = 1 * 1024 * 1024;
 }
 
@@ -1706,7 +1703,7 @@ void SourceBuffer::sourceBufferPrivateDidReceiveSample(MediaSample& sample)
 
                 if (range.first != trackBuffer.samples.presentationOrder().end())
                     erasedSamples.addRange(range.first, range.second);
-            } while(false);
+            } while (false);
         }
 
         // 1.16 Remove decoding dependencies of the coded frames removed in the previous step:
@@ -1810,11 +1807,10 @@ void SourceBuffer::sourceBufferPrivateDidReceiveSample(MediaSample& sample)
     if (it != m_trackBufferMap.end() && m_private->isReadyForMoreSamples(trackID))
     {
         TrackBuffer& trackBuffer = it->value;
-        if (trackBuffer.needsReenqueueing == false &&
+        if (!trackBuffer.needsReenqueueing &&
             trackBuffer.lastEnqueuedDecodeEndTime.isValid() &&
             trackBuffer.lastDecodeTimestamp.isValid() &&
-            abs(trackBuffer.lastEnqueuedDecodeEndTime - trackBuffer.lastDecodeTimestamp) > MediaTime::createWithDouble(0.350) )
-        {
+            abs(trackBuffer.lastEnqueuedDecodeEndTime - trackBuffer.lastDecodeTimestamp) > MediaTime::createWithDouble(0.350)) {
             provideMediaData(trackBuffer, trackID);
         }
     }

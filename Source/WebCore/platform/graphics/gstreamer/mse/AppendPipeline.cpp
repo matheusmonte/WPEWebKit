@@ -266,14 +266,10 @@ void AppendPipeline::handleNeedContextSyncMessage(GstMessage* message)
         return;
 
     if (!g_strcmp0(contextType, "drm-preferred-decryption-system-id")) {
-        if (WTF::isMainThread()) {
+        if (WTF::isMainThread())
             transitionTo(AppendState::KeyNegotiation);
-        } else {
-            GstStructure* structure = gst_structure_new("transition-main-thread",
-                                                        "transition",
-                                                        G_TYPE_INT,
-                                                        AppendState::KeyNegotiation,
-                                                        nullptr);
+        else {
+            GstStructure* structure = gst_structure_new("transition-main-thread", "transition", G_TYPE_INT, AppendState::KeyNegotiation, nullptr);
             GstMessage* message = gst_message_new_application(GST_OBJECT(m_demux.get()), structure);
             if (gst_bus_post(m_bus.get(), message)) {
                 GST_TRACE("transition-main-thread KeyNegotiation sent to the bus");

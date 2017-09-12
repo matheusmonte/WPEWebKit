@@ -323,7 +323,7 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek()
     if (!isTimeBuffered(seekTime) || m_readyState < MediaPlayer::HaveCurrentData) {
         // Media source may trigger seek completion even when the target time is not yet buffered,
         // in this case it is better continue the seek and wait for the app to provide media data.
-        m_mseSeekCompleted=true;
+        m_mseSeekCompleted = true;
         m_mediaSource->seekToTime(seekTime);
         if (!m_mseSeekCompleted) {
             GST_DEBUG("[Seek] Delaying the seek: MSE is not ready");
@@ -336,11 +336,8 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek()
                 return false;
             }
             return true;
-        } else {
-            GST_DEBUG("[Seek] The target seek time is not buffered yet,"
-                      " but media source says OK to continue the seek,"
-                      " seekTime=%f", seekTime.toDouble());
-        }
+        } else
+            GST_DEBUG("[Seek] The target seek time is not buffered yet, but media source says OK to continue the seek, seekTime=%f", seekTime.toDouble());
     }
 
     // Complete previous MSE seek if needed.
@@ -957,7 +954,7 @@ MediaTime MediaPlayerPrivateGStreamerMSE::currentMediaTime() const
     MediaTime position = MediaPlayerPrivateGStreamer::currentMediaTime();
     MediaTime playbackProgress = abs(position - cachedPosition);
 
-    if (m_eosPending && abs(position - durationMediaTime()) < MediaTime::createWithDouble(1) && !playbackProgress) {
+    if (m_eosPending && abs(position - durationMediaTime()) < MediaTime(GST_SECOND, GST_SECOND) && !playbackProgress) {
         if (m_networkState != MediaPlayer::Loaded) {
             m_networkState = MediaPlayer::Loaded;
             m_player->networkStateChanged();

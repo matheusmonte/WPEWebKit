@@ -599,9 +599,9 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
     if (!getVideoSizeAndFormatFromCaps(caps.get(), originalSize, format, pixelAspectRatioNumerator, pixelAspectRatioDenominator, stride))
         return FloatSize();
 
-    // Sanity check for the unlikely, but reproducible case when getVideoSizeAndFormatFromCaps returns incorrect values
-    if ((originalSize.width() == 0) || (originalSize.height() == 0)
-       || (pixelAspectRatioNumerator == 0) || (pixelAspectRatioNumerator == 0)) {
+    // Sanity check for the unlikely, but reproducible case when getVideoSizeAndFormatFromCaps returns incorrect values.
+    if (!originalSize.width() || !originalSize.height()
+       || !pixelAspectRatioNumerator || !pixelAspectRatioNumerator) {
         GST_DEBUG("getVideoSizeAndFormatFromCaps returned an invalid info, returning an empty size");
         return FloatSize();
     }
@@ -931,10 +931,8 @@ void MediaPlayerPrivateGStreamerBase::clearCurrentBuffer()
     // This prevents resizing problems when the video changes its quality and a DRAIN is performed.
     const GstStructure* info = gst_sample_get_info(m_sample.get());
     GstStructure* infoCopy = nullptr;
-    if (info)
-        infoCopy = gst_structure_copy(info);
     m_sample = adoptGRef(gst_sample_new(nullptr, gst_sample_get_caps(m_sample.get()),
-        gst_sample_get_segment(m_sample.get()), infoCopy));
+        gst_sample_get_segment(m_sample.get()), info ? gst_structure_copy(info) : nullptr));
 
     {
         LockHolder locker(m_platformLayerProxy->lock());
@@ -978,7 +976,7 @@ void MediaPlayerPrivateGStreamerBase::updateVideoRectangle()
 
     GRefPtr<GstElement> sinkElement;
     g_object_get(m_pipeline.get(), "video-sink", &sinkElement.outPtr(), nullptr);
-    if(!sinkElement)
+    if (!sinkElement)
         return;
 
     GST_INFO("Setting video sink size and position to x:%d y:%d, width=%d, height=%d", m_position.x(), m_position.y(), m_size.width(), m_size.height());

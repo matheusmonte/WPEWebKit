@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef WKURLRequest_h
-#define WKURLRequest_h
+#pragma once
 
 #include <WebKit/WKBase.h>
 
@@ -51,5 +50,3 @@ WK_EXPORT void WKURLRequestSetHTTPHeaderField(WKURLRequestRef, WKStringRef, WKSt
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* WKURLRequest_h */

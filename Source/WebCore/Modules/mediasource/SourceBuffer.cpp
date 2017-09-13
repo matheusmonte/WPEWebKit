@@ -429,7 +429,7 @@ void SourceBuffer::seekToTime(const MediaTime& time)
 
     for (auto& trackBufferPair : m_trackBufferMap) {
         TrackBuffer& trackBuffer = trackBufferPair.value;
-        const AtomicString& trackID = trackBufferPair.key;
+        const auto& trackID = trackBufferPair.key;
 
         trackBuffer.needsReenqueueing = true;
         reenqueueMediaForTime(trackBuffer, trackID, time);
@@ -643,7 +643,7 @@ void SourceBuffer::sourceBufferPrivateAppendComplete(AppendResult result)
     MediaTime currentMediaTime = m_source->currentTime();
     for (auto& trackBufferPair : m_trackBufferMap) {
         TrackBuffer& trackBuffer = trackBufferPair.value;
-        const AtomicString& trackID = trackBufferPair.key;
+        const auto& trackID = trackBufferPair.key;
 
         if (trackBuffer.needsReenqueueing) {
             LOG(MediaSource, "SourceBuffer::sourceBufferPrivateAppendComplete(%p) - reenqueuing at time (%s)", this, toString(currentMediaTime).utf8().data());
@@ -908,7 +908,7 @@ void SourceBuffer::evictCodedFrames(size_t newDataSize)
         return;
     }
 
-    auto buffered = m_buffered->ranges();
+    auto& buffered = m_buffered->ranges();
 
     // 3. Let removal ranges equal a list of presentation time ranges that can be evicted from
     // the presentation to make room for the new data.
@@ -1802,15 +1802,14 @@ void SourceBuffer::sourceBufferPrivateDidReceiveSample(MediaSample& sample)
         m_source->setDurationInternal(m_groupEndTimestamp);
 
     // To avoid playback pipeline starvation start providing media data as soon as we can
-    const AtomicString& trackID = sample.trackID();
+    const auto& trackID = sample.trackID();
     auto it = m_trackBufferMap.find(trackID);
-    if (it != m_trackBufferMap.end() && m_private->isReadyForMoreSamples(trackID))
-    {
+    if (it != m_trackBufferMap.end() && m_private->isReadyForMoreSamples(trackID)) {
         TrackBuffer& trackBuffer = it->value;
-        if (!trackBuffer.needsReenqueueing &&
-            trackBuffer.lastEnqueuedDecodeEndTime.isValid() &&
-            trackBuffer.lastDecodeTimestamp.isValid() &&
-            abs(trackBuffer.lastEnqueuedDecodeEndTime - trackBuffer.lastDecodeTimestamp) > MediaTime::createWithDouble(0.350)) {
+        if (!trackBuffer.needsReenqueueing
+            && trackBuffer.lastEnqueuedDecodeEndTime.isValid()
+            && trackBuffer.lastDecodeTimestamp.isValid()
+            && abs(trackBuffer.lastEnqueuedDecodeEndTime - trackBuffer.lastDecodeTimestamp) > MediaTime::createWithDouble(0.350)) {
             provideMediaData(trackBuffer, trackID);
         }
     }

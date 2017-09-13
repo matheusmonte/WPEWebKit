@@ -310,7 +310,7 @@ void MediaPlayerPrivateGStreamer::commitLoad()
 // utility function for bcm nexus seek functionality
 static GstElement* findVideoDecoder(GstElement *element)
 {
-    GstElement *re = nullptr;
+    GstElement* re = nullptr;
     if (GST_IS_BIN(element)) {
         GstIterator* it = gst_bin_iterate_elements(GST_BIN(element));
         GValue item = G_VALUE_INIT;

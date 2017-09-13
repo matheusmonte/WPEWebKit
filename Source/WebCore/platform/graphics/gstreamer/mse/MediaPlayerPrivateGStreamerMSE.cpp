@@ -336,8 +336,8 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek()
                 return false;
             }
             return true;
-        } else
-            GST_DEBUG("[Seek] The target seek time is not buffered yet, but media source says OK to continue the seek, seekTime=%f", seekTime.toDouble());
+        }
+        GST_DEBUG("[Seek] The target seek time is not buffered yet, but media source says OK to continue the seek, seekTime=%f", seekTime.toDouble());
     }
 
     // Complete previous MSE seek if needed.

@@ -508,7 +508,7 @@ ExceptionOr<void> MediaSource::setDurationInternal(const MediaTime& duration)
     // on all objects in sourceBuffers.
     if (m_duration.isValid() && newDuration < m_duration) {
         for (auto& sourceBuffer : *m_sourceBuffers) {
-            auto length = sourceBuffer->bufferedInternal().length();
+            unsigned length = sourceBuffer->bufferedInternal().length();
             if (length && newDuration < sourceBuffer->bufferedInternal().ranges().end(length - 1))
                 sourceBuffer->rangeRemoval(newDuration, sourceBuffer->bufferedInternal().ranges().end(length - 1));
         }
@@ -882,7 +882,7 @@ bool MediaSource::isTypeSupported(const String& type)
     MediaEngineSupportParameters parameters;
     parameters.type = contentType;
     parameters.channels = channels;
-    parameters.dimension = FloatSize(width, height);
+    parameters.dimension = { width, height };
     parameters.framerate = framerate;
     parameters.isMediaSource = true;
     MediaPlayer::SupportsType supported = MediaPlayer::supportsType(parameters, 0);

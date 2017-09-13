@@ -73,5 +73,5 @@ void WKURLRequestSetDefaultTimeoutInterval(double timeoutInterval)
 
 void WKURLRequestSetHTTPHeaderField(WKURLRequestRef requestRef, WKStringRef key, WKStringRef value)
 {
-	toImpl(requestRef)->setHTTPHeaderField(toImpl(key)->string(), toImpl(value)->string());
+    toImpl(requestRef)->setHTTPHeaderField(toImpl(key)->string(), toImpl(value)->string());
 }

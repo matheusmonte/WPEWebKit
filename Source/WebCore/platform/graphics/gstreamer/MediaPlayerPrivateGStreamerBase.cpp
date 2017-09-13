@@ -135,9 +135,9 @@ using namespace std;
 namespace WebCore {
 
 #if ENABLE(NATIVE_AUDIO)
-static const GstStreamVolumeFormat VOLUME_FORMAT = GST_STREAM_VOLUME_FORMAT_LINEAR;
+static const GstStreamVolumeFormat volumeFormat = GST_STREAM_VOLUME_FORMAT_LINEAR;
 #else
-static const GstStreamVolumeFormat VOLUME_FORMAT = GST_STREAM_VOLUME_FORMAT_CUBIC;
+static const GstStreamVolumeFormat volumeFormat = GST_STREAM_VOLUME_FORMAT_CUBIC;
 #endif
 
 
@@ -267,8 +267,8 @@ MediaPlayerPrivateGStreamerBase::MediaPlayerPrivateGStreamerBase(MediaPlayer* pl
     , m_readyState(MediaPlayer::HaveNothing)
     , m_networkState(MediaPlayer::Empty)
     , m_isEndReached(false)
-    , m_drawTimer(RunLoop::main(), this, &MediaPlayerPrivateGStreamerBase::repaint)
     , m_usingFallbackVideoSink(false)
+    , m_drawTimer(RunLoop::main(), this, &MediaPlayerPrivateGStreamerBase::repaint)
 {
     g_mutex_init(&m_sampleMutex);
 #if USE(COORDINATED_GRAPHICS_THREADED)
@@ -562,7 +562,7 @@ bool MediaPlayerPrivateGStreamerBase::ensureGstGLContext()
 FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
 {
     if (!hasVideo())
-        return FloatSize();
+        return { };
 
     if (!m_videoSize.isEmpty())
         return m_videoSize;
@@ -572,7 +572,7 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
     GRefPtr<GstCaps> caps;
     // We may not have enough data available for the video sink yet.
     if (!GST_IS_SAMPLE(m_sample.get()))
-        return FloatSize();
+        return { };
 
     if (GST_IS_SAMPLE(m_sample.get()) && !caps)
         caps = gst_sample_get_caps(m_sample.get());
@@ -584,7 +584,7 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
     }
 
     if (!caps)
-        return FloatSize();
+        return { };
 
     // TODO: handle possible clean aperture data. See
     // https://bugzilla.gnome.org/show_bug.cgi?id=596571
@@ -597,13 +597,12 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
     IntSize originalSize;
     GstVideoFormat format;
     if (!getVideoSizeAndFormatFromCaps(caps.get(), originalSize, format, pixelAspectRatioNumerator, pixelAspectRatioDenominator, stride))
-        return FloatSize();
+        return { };
 
     // Sanity check for the unlikely, but reproducible case when getVideoSizeAndFormatFromCaps returns incorrect values.
-    if (!originalSize.width() || !originalSize.height()
-       || !pixelAspectRatioNumerator || !pixelAspectRatioNumerator) {
+    if (!originalSize.width() || !originalSize.height() || !pixelAspectRatioNumerator || !pixelAspectRatioNumerator) {
         GST_DEBUG("getVideoSizeAndFormatFromCaps returned an invalid info, returning an empty size");
-        return FloatSize();
+        return { };
     }
 
 #if USE(TEXTURE_MAPPER_GL)
@@ -653,7 +652,7 @@ void MediaPlayerPrivateGStreamerBase::setVolume(float volume)
         return;
 
     GST_DEBUG("Setting volume: %f", volume);
-    gst_stream_volume_set_volume(m_volumeElement.get(), VOLUME_FORMAT, static_cast<double>(volume));
+    gst_stream_volume_set_volume(m_volumeElement.get(), volumeFormat, static_cast<double>(volume));
 }
 
 float MediaPlayerPrivateGStreamerBase::volume() const
@@ -661,7 +660,7 @@ float MediaPlayerPrivateGStreamerBase::volume() const
     if (!m_volumeElement)
         return 0;
 
-    return gst_stream_volume_get_volume(m_volumeElement.get(), VOLUME_FORMAT);
+    return gst_stream_volume_get_volume(m_volumeElement.get(), volumeFormat);
 }
 
 
@@ -670,7 +669,7 @@ void MediaPlayerPrivateGStreamerBase::notifyPlayerOfVolumeChange()
     if (!m_player || !m_volumeElement)
         return;
     double volume;
-    volume = gst_stream_volume_get_volume(m_volumeElement.get(), VOLUME_FORMAT);
+    volume = gst_stream_volume_get_volume(m_volumeElement.get(), volumeFormat);
     // get_volume() can return values superior to 1.0 if the user
     // applies software user gain via third party application (GNOME
     // volume control for instance).
@@ -930,7 +929,6 @@ void MediaPlayerPrivateGStreamerBase::clearCurrentBuffer()
     // Replace by a new sample having only the caps, so this dummy sample is still useful to get the dimensions.
     // This prevents resizing problems when the video changes its quality and a DRAIN is performed.
     const GstStructure* info = gst_sample_get_info(m_sample.get());
-    GstStructure* infoCopy = nullptr;
     m_sample = adoptGRef(gst_sample_new(nullptr, gst_sample_get_caps(m_sample.get()),
         gst_sample_get_segment(m_sample.get()), info ? gst_structure_copy(info) : nullptr));
 
@@ -1203,17 +1201,18 @@ GstElement* MediaPlayerPrivateGStreamerBase::createVideoSinkGL()
     gst_element_add_pad(videoSink, gst_ghost_pad_new("sink", pad.get()));
 
     pad = adoptGRef(gst_element_get_static_pad(appsink, "sink"));
-    gst_pad_add_probe (pad.get(), GST_PAD_PROBE_TYPE_EVENT_FLUSH, [] (GstPad*, GstPadProbeInfo* info,  gpointer userData) -> GstPadProbeReturn {
-        if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) != GST_EVENT_FLUSH_START)
-           return GST_PAD_PROBE_OK;
+    gst_pad_add_probe (pad.get(), GST_PAD_PROBE_TYPE_EVENT_FLUSH,
+        [] (GstPad*, GstPadProbeInfo* info,  gpointer userData) -> GstPadProbeReturn {
+            if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) != GST_EVENT_FLUSH_START)
+                return GST_PAD_PROBE_OK;
 
-        auto* player = static_cast<MediaPlayerPrivateGStreamerBase*>(userData);
-        player->clearCurrentBuffer();
-        return GST_PAD_PROBE_OK;
-     }, this, nullptr);
+            auto* player = static_cast<MediaPlayerPrivateGStreamerBase*>(userData);
+            player->clearCurrentBuffer();
+            return GST_PAD_PROBE_OK;
+        }, this, nullptr);
 
-     g_object_set_data(G_OBJECT(appsink), "player", (gpointer) this);
-     gst_pad_set_query_function(pad.get(), appSinkSinkQuery);
+    g_object_set_data(G_OBJECT(appsink), "player", (gpointer) this);
+    gst_pad_set_query_function(pad.get(), appSinkSinkQuery);
 
     if (!result) {
         GST_WARNING("Failed to link GstGL elements");

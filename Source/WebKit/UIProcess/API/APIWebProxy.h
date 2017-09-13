@@ -42,7 +42,7 @@ public:
 
 private:
     WebProxy(const WebCore::Proxy& proxy)
-            : m_proxy(proxy) { }
+        : m_proxy(proxy) { }
 
     WebCore::Proxy m_proxy;
 };

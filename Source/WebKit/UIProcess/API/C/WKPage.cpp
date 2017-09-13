@@ -2120,7 +2120,7 @@ void WKPageSetPageUIClient(WKPageRef pageRef, const WKPageUIClientBase* wkClient
 #endif
 
         void willAddDetailedMessageToConsole(WebPageProxy* page, const String& source, const String& level,
-                uint64_t line, uint64_t column, const String& message, const String& url) override
+            uint64_t line, uint64_t column, const String& message, const String& url) override
         {
             if (!m_client.willAddDetailedMessageToConsole)
                 return;

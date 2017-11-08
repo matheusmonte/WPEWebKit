@@ -461,6 +461,23 @@ String CDMInstanceOpenCDM::getCurrentSessionId() const
     return sessionIdMap.begin()->key;
 }
 
+String CDMInstanceOpenCDM::getSessionIdByInitData(const Ref<SharedBuffer>& initData) const
+{
+    if (sessionIdMap.isEmpty()) {
+        GST_WARNING("no sessions");
+        return { };
+    }
+
+    for (auto& sessionIdInitDataMap : sessionIdMap) {
+        if (sessionIdInitDataMap.value->size() == initData->size()) {
+            if (!(memcmp(sessionIdInitDataMap.value->data(), initData->data(), initData->size())))
+                return sessionIdInitDataMap.key;
+        }
+    }
+
+    return { };
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(ENCRYPTED_MEDIA) && USE(OPENCDM)

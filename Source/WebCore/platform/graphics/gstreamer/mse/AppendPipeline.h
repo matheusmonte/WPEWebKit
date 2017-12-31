@@ -65,9 +65,9 @@ public:
     void dispatchDecryptionStructure(GUniquePtr<GstStructure>&&);
 #endif
 #if USE(OPENCDM)
-    bool isDecryptionStructureDispatched();
-    Vector<char> getInitData();
-    HashMap<String, unsigned> getKeySystemProtectionEventMap();
+    bool isDecryptionStructureDispatched() const { return m_decryptionStructureDispatched; }
+    Vector<uint8_t> initData() { return m_initData; }
+    HashMap<String, unsigned> keySystemProtectionEventMap() { return m_keySystemProtectionEventMap; }
 #endif
 
     // Takes ownership of caps.
@@ -174,7 +174,7 @@ private:
     GUniquePtr<GstStructure> m_pendingDecryptionStructure;
 #endif
 #if USE(OPENCDM)
-    Vector<char> m_initData;
+    Vector<uint8_t> m_initData;
     HashMap<String, unsigned> m_keySystemProtectionEventMap;
     bool m_protectionEventTriggered;
     bool m_decryptionStructureDispatched;

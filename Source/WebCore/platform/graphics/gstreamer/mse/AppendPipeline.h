@@ -86,7 +86,6 @@ public:
     WebCore::MediaSourceStreamTypeGStreamer streamType() { return m_streamType; }
 
     void disconnectDemuxerSrcPadFromAppsinkFromAnyThread(GstPad*);
-    void appendPipelineDemuxerNoMorePadsFromAnyThread();
     void connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad*);
     void connectDemuxerSrcPadToAppsink(GstPad*);
 
@@ -102,7 +101,6 @@ private:
     void handleAppsrcNeedDataReceived();
     void removeAppsrcDataLeavingProbe();
     void setAppsrcDataLeavingProbe();
-    void demuxerNoMorePads();
     void consumeAppSinkAvailableSamples();
 #if ENABLE(ENCRYPTED_MEDIA)
     void dispatchPendingDecryptionStructure();

@@ -1346,7 +1346,7 @@ unsigned MediaPlayerPrivateGStreamerBase::videoDecodedByteCount() const
 #if ENABLE(ENCRYPTED_MEDIA)
 void MediaPlayerPrivateGStreamerBase::cdmInstanceAttached(const CDMInstance& instance)
 {
-    ASSERT(!m_cdmInstance);
+    //ASSERT(!m_cdmInstance);
     m_cdmInstance = &instance;
     GST_DEBUG("CDM instance %p set", m_cdmInstance.get());
     m_protectionCondition.notifyAll();

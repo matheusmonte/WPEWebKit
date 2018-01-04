@@ -308,21 +308,23 @@ void PlaybackPipeline::reattachTrack(RefPtr<SourceBufferPrivateGStreamer> source
     Stream* stream = getStreamBySourceBufferPrivate(webKitMediaSrc, sourceBufferPrivate.get());
     GST_OBJECT_UNLOCK(webKitMediaSrc);
 
-    ASSERT(stream && stream->type != Invalid);
+    //ASSERT(stream && stream->type != Invalid);
+    if (!stream) { GST_ERROR("stream is null"); }
+    if (stream->type == Invalid) { GST_ERROR("invalid stream"); }
 
     int signal = -1;
 
     GST_OBJECT_LOCK(webKitMediaSrc);
     if (g_str_has_prefix(mediaType, "audio")) {
-        ASSERT(stream->type == Audio);
+        //ASSERT(stream->type == Audio);
         signal = SIGNAL_AUDIO_CHANGED;
         stream->audioTrack = RefPtr<WebCore::AudioTrackPrivateGStreamer>(static_cast<WebCore::AudioTrackPrivateGStreamer*>(trackPrivate.get()));
     } else if (g_str_has_prefix(mediaType, "video")) {
-        ASSERT(stream->type == Video);
+        //ASSERT(stream->type == Video);
         signal = SIGNAL_VIDEO_CHANGED;
         stream->videoTrack = RefPtr<WebCore::VideoTrackPrivateGStreamer>(static_cast<WebCore::VideoTrackPrivateGStreamer*>(trackPrivate.get()));
     } else if (g_str_has_prefix(mediaType, "text")) {
-        ASSERT(stream->type == Text);
+        //ASSERT(stream->type == Text);
         signal = SIGNAL_TEXT_CHANGED;
 
         // FIXME: Support text tracks.

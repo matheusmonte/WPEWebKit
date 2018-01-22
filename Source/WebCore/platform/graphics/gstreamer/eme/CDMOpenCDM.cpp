@@ -217,7 +217,7 @@ std::unique_ptr<CDMPrivate> CDMFactoryOpenCDM::createCDM(const String& keySystem
 
 bool CDMFactoryOpenCDM::supportsKeySystem(const String& keySystem)
 {
-    return GStreamerEMEUtilities::isPlayReadyKeySystem(keySystem) || GStreamerEMEUtilities::isWidevineKeySystem(keySystem);
+    return GStreamerEMEUtilities::isPlayReadyKeySystem(keySystem);
 }
 
 CDMInstanceOpenCDM::CDMInstanceOpenCDM(std::unique_ptr<media::OpenCdm> backend, const String& keySystem)

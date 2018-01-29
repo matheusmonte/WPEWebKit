@@ -449,7 +449,7 @@ void CDMInstanceOpenCDM::storeRecordOfKeyUsage(const String&)
 {
 }
 
-String CDMInstanceOpenCDM::getCurrentSessionId() const
+String CDMInstanceOpenCDM::currentSessionId() const
 {
     ASSERT(sessionIdMap.size() == 1);
 
@@ -463,7 +463,7 @@ String CDMInstanceOpenCDM::getCurrentSessionId() const
     return sessionIdMap.begin()->key;
 }
 
-String CDMInstanceOpenCDM::sessionIdByInitData(const Vector<uint8_t>& initData) const
+String CDMInstanceOpenCDM::sessionIdByInitData(const InitData& initData) const
 {
     if (sessionIdMap.isEmpty()) {
         GST_WARNING("no sessions");

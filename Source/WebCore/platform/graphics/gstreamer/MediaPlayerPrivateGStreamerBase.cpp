@@ -1369,8 +1369,6 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithLocalInstance()
             if (!sessionId.isEmpty()) {
                 GST_TRACE("using %s", sessionId.utf8().data());
                 dispatchOrStoreDecryptionSession(sessionId, initDataEventsMatch.value);
-                m_initDataToProtectionEventsMap.remove(initDataEventsMatch.key);
-                break;
             } else
                 GST_WARNING("found no session id to dispatch");
         }
@@ -1398,22 +1396,36 @@ void MediaPlayerPrivateGStreamerBase::mapProtectionEventToInitData(const InitDat
     eventIds.append(eventId);
 }
 
+void MediaPlayerPrivateGStreamerBase::unmapProtectionEventFromInitData(GstEventSeqNum eventId)
+{
+    for (auto& initDataEventsMatch : m_initDataToProtectionEventsMap) {
+        size_t eventPosition = initDataEventsMatch.value.find(eventId);
+        if (eventPosition != notFound) {
+            if (initDataEventsMatch.value.size() <= 1)
+                m_initDataToProtectionEventsMap.remove(initDataEventsMatch.key);
+            else
+                initDataEventsMatch.value.remove(eventPosition);
+            break;
+        }
+    }
+}
+
 void MediaPlayerPrivateGStreamerBase::dispatchDecryptionSession(const String& sessionId, GstEventSeqNum eventId)
 {
     bool eventHandled = gst_element_send_event(m_pipeline.get(), gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB,
         gst_structure_new("drm-session", "session", G_TYPE_STRING, sessionId.utf8().data(), "protection-event", G_TYPE_UINT, eventId, nullptr)));
+    m_protectionEventToSessionCache.remove(eventId);
+    unmapProtectionEventFromInitData(eventId);
     GST_TRACE("emitted decryption session %s on pipeline for event %u, event handled %s", sessionId.utf8().data(), eventId, boolForPrinting(eventHandled));
  }
 
 void MediaPlayerPrivateGStreamerBase::dispatchOrStoreDecryptionSession(const String& sessionId, GstEventSeqNum eventId)
 {
-    if (m_reportedProtectionEvents.contains(eventId))
-        m_protectionEventToSessionCache.add(eventId, sessionId);
-    else {
+    if (!m_reportedProtectionEvents.contains(eventId))
         dispatchDecryptionSession(sessionId, eventId);
-
-        if (m_protectionEventToSessionCache.contains(eventId))
-            m_protectionEventToSessionCache.remove(eventId);
+    else {
+        m_protectionEventToSessionCache.add(eventId, sessionId);
+        GST_TRACE("decryption session %s kept for later for event %u", sessionId.utf8().data(), eventId);
     }
 }
 
@@ -1428,20 +1440,35 @@ void MediaPlayerPrivateGStreamerBase::handleProtectionEvent(GstEvent* event)
 {
     LockHolder lock(m_protectionMutex);
 
+#if USE(OPENCDM)
+    GST_DEBUG("waiting for a CDM instance");
+    m_protectionCondition.waitFor(m_protectionMutex, Seconds(4), [this] {
+        return this->m_cdmInstance;
+    });
+    if (!m_cdmInstance) {
+        GST_ERROR("we should have a CDM instance at this point");
+        return;
+    }
+#endif
+
+    // Check whether the protection event was already reported or not to JavaScript. If it was, we resend the decryption information to the decryptor.
     size_t eventPosition = m_reportedProtectionEvents.find(GST_EVENT_SEQNUM(event));
     if (eventPosition != notFound) {
-        GST_DEBUG("event %u already handled", GST_EVENT_SEQNUM(event));
+        GST_DEBUG("event %u already reported to JS", GST_EVENT_SEQNUM(event));
         m_reportedProtectionEvents.remove(eventPosition);
-        if (m_needToResendCredentials) {
-            GST_DEBUG("resending credentials");
-            attemptToDecryptWithLocalInstance();
-        }
 #if USE(OPENCDM)
-        else {
-            if (m_protectionEventToSessionCache.contains(GST_EVENT_SEQNUM(event)))
-                dispatchOrStoreDecryptionSession(m_protectionEventToSessionCache.get(GST_EVENT_SEQNUM(event)), GST_EVENT_SEQNUM(event));
-        }
+        if (is<CDMInstanceOpenCDM>(*m_cdmInstance)) {
+            ASSERT(m_protectionEventToSessionCache.contains(GST_EVENT_SEQNUM(event)));
+            String sessionId = m_protectionEventToSessionCache.get(GST_EVENT_SEQNUM(event));
+            dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+        } else
 #endif
+        {
+            if (m_needToResendCredentials) {
+                GST_DEBUG("resending credentials");
+                attemptToDecryptWithLocalInstance();
+            }
+        }
         return;
     }
 

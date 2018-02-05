@@ -155,6 +155,7 @@ public:
 #if USE(OPENCDM)
     using InitData = String;
     void mapProtectionEventToInitData(const InitData&, GstEventSeqNum);
+    void unmapProtectionEventFromInitData(GstEventSeqNum);
     virtual void dispatchDecryptionSession(const String&, GstEventSeqNum);
     void dispatchOrStoreDecryptionSession(const String&, GstEventSeqNum);
     void dispatchOrStoreDecryptionSession(const String&, const Vector<GstEventSeqNum>&);

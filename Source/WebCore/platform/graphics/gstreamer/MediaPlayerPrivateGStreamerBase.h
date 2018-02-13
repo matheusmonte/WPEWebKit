@@ -157,8 +157,6 @@ public:
     void mapProtectionEventToInitData(const InitData&, GstEventSeqNum);
     void unmapProtectionEventFromInitData(GstEventSeqNum);
     virtual void dispatchDecryptionSession(const String&, GstEventSeqNum);
-    void dispatchOrStoreDecryptionSession(const String&, GstEventSeqNum);
-    void dispatchOrStoreDecryptionSession(const String&, const Vector<GstEventSeqNum>&);
 #endif
 #endif
 
@@ -286,7 +284,7 @@ protected:
     bool m_needToResendCredentials { false };
 
 #if USE(OPENCDM)
-    HashMap<GstEventSeqNum, String> m_protectionEventToSessionCache;
+    HashMap<GstEventSeqNum, InitData> m_protectionEventToInitDataMap;
     HashMap<InitData, Vector<GstEventSeqNum>> m_initDataToProtectionEventsMap;
 #endif
 #endif

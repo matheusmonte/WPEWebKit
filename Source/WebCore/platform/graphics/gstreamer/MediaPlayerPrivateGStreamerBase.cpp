@@ -1352,7 +1352,7 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithInstance(const CDMInst
 {
     ASSERT(m_cdmInstance.get() == &instance);
     GST_TRACE("instance %p, current stored %p", &instance, m_cdmInstance.get());
-    LockHolder lock(m_protectionMutex);
+    // We would have to lock here if attemptToDecryptWithLocalInstance was not empty.
     attemptToDecryptWithLocalInstance();
 }
 
@@ -1362,16 +1362,7 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithLocalInstance()
 #if USE(OPENCDM)
     if (is<CDMInstanceOpenCDM>(*m_cdmInstance)) {
         GST_DEBUG("handling OpenCDM %s keys", m_cdmInstance->keySystem().utf8().data());
-        auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
-        for (const auto& initDataEventsMatch : m_initDataToProtectionEventsMap) {
-            // Retrieve SessionId using initData.
-            String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initDataEventsMatch.key, (m_initDataToProtectionEventsMap.size() == 1));
-            if (!sessionId.isEmpty()) {
-                GST_TRACE("using %s", sessionId.utf8().data());
-                dispatchOrStoreDecryptionSession(sessionId, initDataEventsMatch.value);
-            } else
-                GST_WARNING("found no session id to dispatch");
-        }
+        // We don't need to do anything now.
     } else
 #endif
     {
@@ -1394,45 +1385,29 @@ void MediaPlayerPrivateGStreamerBase::mapProtectionEventToInitData(const InitDat
 {
     auto& eventIds = m_initDataToProtectionEventsMap.ensure(initData, [] { return Vector<GstEventSeqNum> { }; }).iterator->value;
     eventIds.append(eventId);
+    m_protectionEventToInitDataMap.add(eventId, initData);
 }
 
 void MediaPlayerPrivateGStreamerBase::unmapProtectionEventFromInitData(GstEventSeqNum eventId)
 {
-    for (auto& initDataEventsMatch : m_initDataToProtectionEventsMap) {
-        size_t eventPosition = initDataEventsMatch.value.find(eventId);
-        if (eventPosition != notFound) {
-            if (initDataEventsMatch.value.size() <= 1)
-                m_initDataToProtectionEventsMap.remove(initDataEventsMatch.key);
-            else
-                initDataEventsMatch.value.remove(eventPosition);
-            break;
-        }
-    }
+    ASSERT(m_protectionEventToInitDataMap.contains(eventId));
+    const InitData& initData = m_protectionEventToInitDataMap.get(eventId);
+    const auto& addResult = m_initDataToProtectionEventsMap.add(initData, Vector<GstEventSeqNum>());
+    ASSERT(!addResult.isNewEntry);
+    Vector<GstEventSeqNum>& eventIds = addResult.iterator->value;
+    if (eventIds.size() <= 1)
+        m_initDataToProtectionEventsMap.remove(initData);
+    else
+        eventIds.removeFirst(eventId);
+    m_protectionEventToInitDataMap.remove(eventId);
 }
 
 void MediaPlayerPrivateGStreamerBase::dispatchDecryptionSession(const String& sessionId, GstEventSeqNum eventId)
 {
     bool eventHandled = gst_element_send_event(m_pipeline.get(), gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB,
         gst_structure_new("drm-session", "session", G_TYPE_STRING, sessionId.utf8().data(), "protection-event", G_TYPE_UINT, eventId, nullptr)));
-    m_protectionEventToSessionCache.remove(eventId);
     unmapProtectionEventFromInitData(eventId);
     GST_TRACE("emitted decryption session %s on pipeline for event %u, event handled %s", sessionId.utf8().data(), eventId, boolForPrinting(eventHandled));
- }
-
-void MediaPlayerPrivateGStreamerBase::dispatchOrStoreDecryptionSession(const String& sessionId, GstEventSeqNum eventId)
-{
-    if (!m_reportedProtectionEvents.contains(eventId))
-        dispatchDecryptionSession(sessionId, eventId);
-    else {
-        m_protectionEventToSessionCache.add(eventId, sessionId);
-        GST_TRACE("decryption session %s kept for later for event %u", sessionId.utf8().data(), eventId);
-    }
-}
-
-void MediaPlayerPrivateGStreamerBase::dispatchOrStoreDecryptionSession(const String& sessionId, const Vector<GstEventSeqNum>& eventIds)
-{
-    for (auto eventId : eventIds)
-        dispatchOrStoreDecryptionSession(sessionId, eventId);
  }
 #endif
 
@@ -1458,9 +1433,15 @@ void MediaPlayerPrivateGStreamerBase::handleProtectionEvent(GstEvent* event)
         m_reportedProtectionEvents.remove(eventPosition);
 #if USE(OPENCDM)
         if (is<CDMInstanceOpenCDM>(*m_cdmInstance)) {
-            ASSERT(m_protectionEventToSessionCache.contains(GST_EVENT_SEQNUM(event)));
-            String sessionId = m_protectionEventToSessionCache.get(GST_EVENT_SEQNUM(event));
-            dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+            ASSERT(m_protectionEventToInitDataMap.contains(GST_EVENT_SEQNUM(event)));
+            const InitData& initData = m_protectionEventToInitDataMap.get(GST_EVENT_SEQNUM(event));
+            auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
+            String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initData, (m_initDataToProtectionEventsMap.size() == 1));
+            if (!sessionId.isEmpty()) {
+                GST_TRACE("using %s", sessionId.utf8().data());
+                dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+            } else
+                GST_WARNING("found no session id to dispatch");
         } else
 #endif
         {

@@ -29,6 +29,7 @@
 
 #include <open_cdm.h>
 #include <wtf/text/WTFString.h>
+#include <wtf/PrintStream.h>
 
 #define GST_WEBKIT_OPENCDM_DECRYPT_GET_PRIVATE(obj) (G_TYPE_INSTANCE_GET_PRIVATE((obj), WEBKIT_TYPE_OPENCDM_DECRYPT, WebKitOpenCDMDecryptPrivate))
 
@@ -112,6 +113,7 @@ static gboolean webKitMediaOpenCDMDecryptorHandleKeyResponse(WebKitMediaCommonEn
     } else
         GST_DEBUG_OBJECT(self, "session %s already selected!", priv->m_session.utf8().data());
 
+    GST_TRACE_OBJECT(self, "session was handled: %s", boolForPrinting(returnValue));
     return returnValue;
 }
 

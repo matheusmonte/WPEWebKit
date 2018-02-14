@@ -149,13 +149,15 @@ public:
     void cdmInstanceDetached(const CDMInstance&) override;
     void dispatchDecryptionKey(GstBuffer*);
     void handleProtectionEvent(GstEvent*);
-    
     void attemptToDecryptWithLocalInstance();
     void attemptToDecryptWithInstance(const CDMInstance&) override;
 
 #if USE(OPENCDM)
     using InitData = String;
+    void mapProtectionEventToInitData(const InitData&, GstEventSeqNum);
     virtual void dispatchDecryptionSession(const String&, GstEventSeqNum);
+    void dispatchOrStoreDecryptionSession(const String&, GstEventSeqNum);
+    void dispatchOrStoreDecryptionSession(const String&, const Vector<GstEventSeqNum>&);
 #endif
 #endif
 
@@ -279,11 +281,12 @@ protected:
     Lock m_protectionMutex;
     Condition m_protectionCondition;
     RefPtr<const CDMInstance> m_cdmInstance;
+    Vector<GstEventSeqNum> m_reportedProtectionEvents;
     bool m_needToResendCredentials { false };
 
-
 #if USE(OPENCDM)
-    HashMap<InitData, std::pair<unsigned int, String>> m_initSessionCache;
+    HashMap<GstEventSeqNum, String> m_protectionEventToSessionCache;
+    HashMap<InitData, Vector<GstEventSeqNum>> m_initDataToProtectionEventsMap;
 #endif
 #endif
 

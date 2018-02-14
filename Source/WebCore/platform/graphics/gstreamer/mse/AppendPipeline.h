@@ -65,10 +65,9 @@ public:
     void dispatchDecryptionStructure(GUniquePtr<GstStructure>&&);
 #endif
 #if USE(OPENCDM)
-    inline const String GetInitDataByKeySystem(const String& keySystem) const 
-    {
-        return m_initDataCache.get(keySystem);
-    }
+    using InitData = String;
+    InitData initData() { return m_initData; }
+    HashMap<String, unsigned> keySystemProtectionEventMap() { return m_keySystemProtectionEventMap; }
 #endif
 
     // Takes ownership of caps.
@@ -175,11 +174,10 @@ private:
     GRefPtr<GstBuffer> m_pendingBuffer;
 #if ENABLE(ENCRYPTED_MEDIA)
     GUniquePtr<GstStructure> m_pendingDecryptionStructure;
-
 #endif
 #if USE(OPENCDM)
-    
-    HashMap<String, String> m_initDataCache;
+    InitData m_initData;
+    HashMap<String, unsigned> m_keySystemProtectionEventMap;
 #endif
 };
 

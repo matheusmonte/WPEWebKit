@@ -95,7 +95,6 @@ static gboolean webKitMediaOpenCDMDecryptorHandleKeyResponse(WebKitMediaCommonEn
     if (!gst_structure_has_name(structure, "drm-session"))
         return returnValue;
 
-
     GUniqueOutPtr<char> session;
     unsigned protectionEvent;
     gst_structure_get(structure, "session", G_TYPE_STRING, &session.outPtr(), "protection-event", G_TYPE_UINT, &protectionEvent, nullptr);
@@ -104,16 +103,18 @@ static gboolean webKitMediaOpenCDMDecryptorHandleKeyResponse(WebKitMediaCommonEn
     ASSERT(protectionEvent);
 
     if (priv->m_session != session.get()) {
-        priv->m_session = session.get();
-        priv->m_openCdm = std::make_unique<media::OpenCdm>(priv->m_session.utf8().data());
-        GST_DEBUG_OBJECT(self, "selected session %s", priv->m_session.utf8().data());
-        returnValue = true;
+        if (priv->m_protectionEvent == protectionEvent) {
+            priv->m_session = session.get();
+            priv->m_openCdm = std::make_unique<media::OpenCdm>(priv->m_session.utf8().data());
+            GST_DEBUG_OBJECT(self, "selected session %s", priv->m_session.utf8().data());
+            returnValue = true;
+        }
     } else
         GST_DEBUG_OBJECT(self, "session %s already selected!", priv->m_session.utf8().data());
 
     return returnValue;
 }
-        
+
 void webKitMediaOpenCDMDecryptorReceivedProtectionEvent(WebKitMediaCommonEncryptionDecrypt* self, unsigned protectionEvent)
 {
     WebKitOpenCDMDecryptPrivate* priv = GST_WEBKIT_OPENCDM_DECRYPT_GET_PRIVATE(WEBKIT_OPENCDM_DECRYPT(self));
@@ -122,7 +123,6 @@ void webKitMediaOpenCDMDecryptorReceivedProtectionEvent(WebKitMediaCommonEncrypt
 
 static gboolean webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt* self, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSampleCount, GstBuffer* subSamplesBuffer)
 {
-
     GstMapInfo ivMap;
     if (!gst_buffer_map(ivBuffer, &ivMap, GST_MAP_READ)) {
         GST_ERROR_OBJECT(self, "Failed to map IV");

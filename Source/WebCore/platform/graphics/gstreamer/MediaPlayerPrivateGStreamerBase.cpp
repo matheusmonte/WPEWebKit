@@ -1352,7 +1352,7 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithInstance(const CDMInst
 {
     ASSERT(m_cdmInstance.get() == &instance);
     GST_TRACE("instance %p, current stored %p", &instance, m_cdmInstance.get());
-    // We would have to lock here if attemptToDecryptWithLocalInstance was not empty.
+    LockHolder lock(m_protectionMutex);
     attemptToDecryptWithLocalInstance();
 }
 
@@ -1362,7 +1362,16 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithLocalInstance()
 #if USE(OPENCDM)
     if (is<CDMInstanceOpenCDM>(*m_cdmInstance)) {
         GST_DEBUG("handling OpenCDM %s keys", m_cdmInstance->keySystem().utf8().data());
-        // We don't need to do anything now.
+        auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
+        for (const auto& initDataEventsMatch : m_initDataToProtectionEventsMap) {
+            // Retrieve SessionId using initData.
+            String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initDataEventsMatch.key, (m_initDataToProtectionEventsMap.size() == 1));
+            if (!sessionId.isEmpty()) {
+                GST_TRACE("using %s", sessionId.utf8().data());
+                dispatchDecryptionSession(sessionId, initDataEventsMatch.value);
+            } else
+                GST_WARNING("found no session id to dispatch");
+        }
     } else
 #endif
     {
@@ -1406,8 +1415,15 @@ void MediaPlayerPrivateGStreamerBase::dispatchDecryptionSession(const String& se
 {
     bool eventHandled = gst_element_send_event(m_pipeline.get(), gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM_OOB,
         gst_structure_new("drm-session", "session", G_TYPE_STRING, sessionId.utf8().data(), "protection-event", G_TYPE_UINT, eventId, nullptr)));
-    unmapProtectionEventFromInitData(eventId);
+    if (eventHandled)
+        unmapProtectionEventFromInitData(eventId);
     GST_TRACE("emitted decryption session %s on pipeline for event %u, event handled %s", sessionId.utf8().data(), eventId, boolForPrinting(eventHandled));
+ }
+
+void MediaPlayerPrivateGStreamerBase::dispatchDecryptionSession(const String& sessionId, const Vector<GstEventSeqNum>& eventIds)
+{
+    for (auto eventId : eventIds)
+        dispatchDecryptionSession(sessionId, eventId);
  }
 #endif
 
@@ -1433,15 +1449,18 @@ void MediaPlayerPrivateGStreamerBase::handleProtectionEvent(GstEvent* event)
         m_reportedProtectionEvents.remove(eventPosition);
 #if USE(OPENCDM)
         if (is<CDMInstanceOpenCDM>(*m_cdmInstance)) {
-            ASSERT(m_protectionEventToInitDataMap.contains(GST_EVENT_SEQNUM(event)));
-            const InitData& initData = m_protectionEventToInitDataMap.get(GST_EVENT_SEQNUM(event));
-            auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
-            String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initData, (m_initDataToProtectionEventsMap.size() == 1));
-            if (!sessionId.isEmpty()) {
-                GST_TRACE("using %s", sessionId.utf8().data());
-                dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+            auto mappedInitData = m_protectionEventToInitDataMap.find(GST_EVENT_SEQNUM(event));
+            if (mappedInitData != m_protectionEventToInitDataMap.end()) {
+                const InitData& initData = mappedInitData->value;
+                auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
+                String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initData, (m_initDataToProtectionEventsMap.size() == 1));
+                if (!sessionId.isEmpty()) {
+                    GST_TRACE("using %s", sessionId.utf8().data());
+                    dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+                } else
+                    GST_WARNING("found no session id to dispatch");
             } else
-                GST_WARNING("found no session id to dispatch");
+                GST_DEBUG("event %u is not mapped, decryptor should have the session already", GST_EVENT_SEQNUM(event));
         } else
 #endif
         {

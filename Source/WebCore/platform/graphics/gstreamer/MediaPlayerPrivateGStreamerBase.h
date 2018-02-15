@@ -157,6 +157,7 @@ public:
     void mapProtectionEventToInitData(const InitData&, GstEventSeqNum);
     void unmapProtectionEventFromInitData(GstEventSeqNum);
     virtual void dispatchDecryptionSession(const String&, GstEventSeqNum);
+    void dispatchDecryptionSession(const String&, const Vector<GstEventSeqNum>&);
 #endif
 #endif
 

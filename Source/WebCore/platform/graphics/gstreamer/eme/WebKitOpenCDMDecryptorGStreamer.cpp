@@ -43,7 +43,6 @@ static void webKitMediaOpenCDMDecryptorFinalize(GObject*);
 static gboolean webKitMediaOpenCDMDecryptorHandleKeyResponse(WebKitMediaCommonEncryptionDecrypt*, GstEvent*);
 static gboolean webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt*, GstBuffer*, GstBuffer*, unsigned, GstBuffer*);
 static void webKitMediaOpenCDMDecryptorReceivedProtectionEvent(WebKitMediaCommonEncryptionDecrypt*, unsigned);
-static gboolean webKitMediaOpenCDMDecryptorIsKeyReady(WebKitMediaCommonEncryptionDecrypt*);
 
 GST_DEBUG_CATEGORY(webkit_media_opencdm_decrypt_debug_category);
 #define GST_CAT_DEFAULT webkit_media_opencdm_decrypt_debug_category
@@ -71,7 +70,6 @@ static void webkit_media_opencdm_decrypt_class_init(WebKitOpenCDMDecryptClass* k
     cencClass->handleKeyResponse = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorHandleKeyResponse);
     cencClass->decrypt = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorDecrypt);
     cencClass->receivedProtectionEvent = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorReceivedProtectionEvent);
-    cencClass->isKeyReady = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorIsKeyReady);
 
     g_type_class_add_private(klass, sizeof(WebKitOpenCDMDecryptPrivate));
 }
@@ -220,13 +218,5 @@ beach:
     gst_buffer_unmap(buffer, &map);
     gst_buffer_unmap(ivBuffer, &ivMap);
     return returnValue;
-}
-
-gboolean webKitMediaOpenCDMDecryptorIsKeyReady(WebKitMediaCommonEncryptionDecrypt* self)
-{
-    WebKitOpenCDMDecryptPrivate* priv = GST_WEBKIT_OPENCDM_DECRYPT_GET_PRIVATE(WEBKIT_OPENCDM_DECRYPT(self));
-    gboolean result = !priv->m_session.isEmpty() && priv->m_openCdm && priv->m_openCdm->Status() == media::OpenCdm::KeyStatus::Usable;
-    GST_TRACE_OBJECT(self, "session %s, status %d, result %s", priv->m_session.utf8().data(), priv->m_openCdm ? priv->m_openCdm->Status() : -1, boolForPrinting(result));
-    return result;
 }
 #endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && USE(OPENCDM)

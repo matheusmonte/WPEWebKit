@@ -41,6 +41,7 @@ struct Key {
 struct _WebKitMediaClearKeyDecryptPrivate {
     Vector<Key> keys;
     gcry_cipher_hd_t handle;
+    bool keyReceived { false };
 };
 
 static void webKitMediaClearKeyDecryptorFinalize(GObject*);
@@ -48,6 +49,7 @@ static gboolean webKitMediaClearKeyDecryptorHandleKeyResponse(WebKitMediaCommonE
 static gboolean webKitMediaClearKeyDecryptorSetupCipher(WebKitMediaCommonEncryptionDecrypt*, GstBuffer*);
 static gboolean webKitMediaClearKeyDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* iv, GstBuffer* sample, unsigned subSamplesCount, GstBuffer* subSamples);
 static void webKitMediaClearKeyDecryptorReleaseCipher(WebKitMediaCommonEncryptionDecrypt*);
+static gboolean webKitMediaClearKeyDecryptorIsKeyReady(WebKitMediaCommonEncryptionDecrypt*);
 
 GST_DEBUG_CATEGORY_STATIC(webkit_media_clear_key_decrypt_debug_category);
 #define GST_CAT_DEFAULT webkit_media_clear_key_decrypt_debug_category
@@ -90,6 +92,7 @@ static void webkit_media_clear_key_decrypt_class_init(WebKitMediaClearKeyDecrypt
     cencClass->setupCipher = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorSetupCipher);
     cencClass->decrypt = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorDecrypt);
     cencClass->releaseCipher = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorReleaseCipher);
+    cencClass->isKeyReady = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorIsKeyReady);
 
     g_type_class_add_private(klass, sizeof(WebKitMediaClearKeyDecryptPrivate));
 }
@@ -145,6 +148,8 @@ static gboolean webKitMediaClearKeyDecryptorHandleKeyResponse(WebKitMediaCommonE
         GRefPtr<GstBuffer> keyValueBuffer(gst_value_get_buffer(gst_value_list_get_value(keyValuesList, i)));
         priv->keys.append(Key { WTFMove(keyIDBuffer), WTFMove(keyValueBuffer) });
     }
+
+    priv->keyReceived = true;
 #endif
 
     return TRUE;
@@ -300,6 +305,11 @@ static void webKitMediaClearKeyDecryptorReleaseCipher(WebKitMediaCommonEncryptio
 {
     WebKitMediaClearKeyDecryptPrivate* priv = WEBKIT_MEDIA_CK_DECRYPT_GET_PRIVATE(WEBKIT_MEDIA_CK_DECRYPT(self));
     gcry_cipher_close(priv->handle);
+}
+
+static gboolean webKitMediaClearKeyDecryptorIsKeyReady(WebKitMediaCommonEncryptionDecrypt* self)
+{
+    return WEBKIT_MEDIA_CK_DECRYPT_GET_PRIVATE(WEBKIT_MEDIA_CK_DECRYPT(self))->keyReceived;
 }
 
 #endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER)

@@ -32,7 +32,6 @@
 
 #define WEBKIT_MEDIA_CENC_DECRYPT_GET_PRIVATE(obj) (G_TYPE_INSTANCE_GET_PRIVATE((obj), WEBKIT_TYPE_MEDIA_CENC_DECRYPT, WebKitMediaCommonEncryptionDecryptPrivate))
 struct _WebKitMediaCommonEncryptionDecryptPrivate {
-    bool keyReceived;
     Lock mutex;
     Condition condition;
 };
@@ -187,23 +186,24 @@ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseT
 {
     WebKitMediaCommonEncryptionDecrypt* self = WEBKIT_MEDIA_CENC_DECRYPT(base);
     WebKitMediaCommonEncryptionDecryptPrivate* priv = WEBKIT_MEDIA_CENC_DECRYPT_GET_PRIVATE(self);
+    WebKitMediaCommonEncryptionDecryptClass* klass = WEBKIT_MEDIA_CENC_DECRYPT_GET_CLASS(self);
     LockHolder locker(priv->mutex);
 
     // The key might not have been received yet. Wait for it.
-    if (!priv->keyReceived) {
-        GST_DEBUG_OBJECT(self, "key not available yet, waiting for it");
+    if (!klass->isKeyReady(self)) {
+        GST_DEBUG_OBJECT(self, "key not ready yet, waiting for it");
         if (GST_STATE(GST_ELEMENT(self)) < GST_STATE_PAUSED || (GST_STATE_TARGET(GST_ELEMENT(self)) != GST_STATE_VOID_PENDING && GST_STATE_TARGET(GST_ELEMENT(self)) < GST_STATE_PAUSED)) {
             GST_ERROR_OBJECT(self, "can't process key requests in less than PAUSED state");
             return GST_FLOW_NOT_SUPPORTED;
         }
-        priv->condition.waitFor(priv->mutex, Seconds(5), [priv] {
-            return priv->keyReceived;
+        priv->condition.waitFor(priv->mutex, Seconds(5), [self, klass] {
+            return klass->isKeyReady(self);
         });
-        if (!priv->keyReceived) {
-            GST_ERROR_OBJECT(self, "key not available");
+        if (!klass->isKeyReady(self)) {
+            GST_ERROR_OBJECT(self, "key not ready");
             return GST_FLOW_NOT_SUPPORTED;
         }
-        GST_DEBUG_OBJECT(self, "key received, continuing");
+        GST_DEBUG_OBJECT(self, "key ready, continuing");
     }
 
     GstProtectionMeta* protectionMeta = reinterpret_cast<GstProtectionMeta*>(gst_buffer_get_protection_meta(buffer));
@@ -257,7 +257,6 @@ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseT
     if (value)
         keyIDBuffer = gst_value_get_buffer(value);
 
-    WebKitMediaCommonEncryptionDecryptClass* klass = WEBKIT_MEDIA_CENC_DECRYPT_GET_CLASS(self);
     if (!klass->setupCipher(self, keyIDBuffer)) {
         GST_ERROR_OBJECT(self, "Failed to configure cipher");
         gst_buffer_remove_meta(buffer, reinterpret_cast<GstMeta*>(protectionMeta));
@@ -316,7 +315,6 @@ static gboolean webkitMediaCommonEncryptionDecryptSinkEventHandler(GstBaseTransf
     case GST_EVENT_CUSTOM_DOWNSTREAM_OOB: {
         if (klass->handleKeyResponse(self, event)) {
             GST_DEBUG_OBJECT(self, "key received");
-            priv->keyReceived = true;
             priv->condition.notifyOne();
             result = TRUE;
         }

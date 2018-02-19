@@ -1367,8 +1367,11 @@ void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithLocalInstance()
             // Retrieve SessionId using initData.
             String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initDataEventsMatch.key, (m_initDataToProtectionEventsMap.size() == 1));
             if (!sessionId.isEmpty()) {
-                GST_TRACE("using %s", sessionId.utf8().data());
-                dispatchDecryptionSession(sessionId, initDataEventsMatch.value);
+                if (cdmInstanceOpenCDM.isSessionIdUsable(sessionId)) {
+                    GST_TRACE("using %s", sessionId.utf8().data());
+                    dispatchDecryptionSession(sessionId, initDataEventsMatch.value);
+                } else
+                    GST_DEBUG("session %s is not usable yet", sessionId.utf8().data());
             } else
                 GST_WARNING("found no session id to dispatch");
         }
@@ -1455,8 +1458,11 @@ void MediaPlayerPrivateGStreamerBase::handleProtectionEvent(GstEvent* event)
                 auto& cdmInstanceOpenCDM = downcast<CDMInstanceOpenCDM>(*m_cdmInstance);
                 String sessionId = cdmInstanceOpenCDM.sessionIdByInitData(initData, (m_initDataToProtectionEventsMap.size() == 1));
                 if (!sessionId.isEmpty()) {
-                    GST_TRACE("using %s", sessionId.utf8().data());
-                    dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+                    if (cdmInstanceOpenCDM.isSessionIdUsable(sessionId)) {
+                        GST_TRACE("using %s", sessionId.utf8().data());
+                        dispatchDecryptionSession(sessionId, GST_EVENT_SEQNUM(event));
+                    } else
+                        GST_DEBUG("session %s is not usable yet", sessionId.utf8().data());
                 } else
                     GST_WARNING("found no session id to dispatch");
             } else

@@ -35,6 +35,7 @@
 
 #include "Performance.h"
 #include <wtf/PassRefPtr.h>
+#include <wtf/Optional.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TypeCasts.h>
 #include <wtf/text/WTFString.h>
@@ -45,10 +46,21 @@ class PerformanceEntry : public RefCounted<PerformanceEntry> {
 public:
     virtual ~PerformanceEntry();
 
-    String name() const;
-    String entryType() const;
-    double startTime() const;
-    double duration() const;
+    String name() const { return m_name; }
+    String entryType() const { return m_entryType; }
+    double startTime() const { return m_startTime; }
+    double duration() const { return m_duration; }
+
+    enum class Type {
+        Navigation = 1 << 0,
+        Mark = 1 << 1,
+        Measure = 1 << 2,
+        Resource = 1 << 3,
+    };
+
+    Type type() const { return m_type; }
+
+    static WTF::Optional<Type> parseEntryTypeString(const String& entryType);
 
     virtual bool isResource() const { return false; }
     virtual bool isMark() const { return false; }
@@ -60,13 +72,14 @@ public:
     }
 
 protected:
-    PerformanceEntry(const String& name, const String& entryType, double startTime, double finishTime);
+    PerformanceEntry(Type, const String& name, const String& entryType, double startTime, double finishTime);
 
 private:
     const String m_name;
     const String m_entryType;
     const double m_startTime;
     const double m_duration;
+    const Type m_type;
 };
 
 } // namespace WebCore

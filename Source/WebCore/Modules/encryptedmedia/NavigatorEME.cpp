@@ -68,7 +68,7 @@ void NavigatorEME::requestMediaKeySystemAccess(Navigator&, Document& document, c
         //      String comparison is case-sensitive.
         GST_TRACE("checking CDM suppport for %s", keySystem.utf8().data());
         if (!CDM::supportsKeySystem(keySystem)) {
-            GST_ERROR("key system %s not supported, rejecting promise", keySystem.utf8().data());
+            GST_WARNING("key system %s not supported, rejecting promise", keySystem.utf8().data());
             promise->reject(NotSupportedError);
             return;
         }

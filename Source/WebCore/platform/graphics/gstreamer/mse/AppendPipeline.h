@@ -43,7 +43,7 @@ struct PadProbeInformation {
 
 class AppendPipeline : public ThreadSafeRefCounted<AppendPipeline> {
 public:
-    enum class AppendState { Invalid, NotStarted, Ongoing, KeyNegotiation, DataStarve, Sampling, LastSample, Aborting };
+    enum class AppendState { Invalid, NotStarted, Ongoing, DataStarve, Sampling, LastSample, Aborting };
 
     AppendPipeline(Ref<MediaSourceClientGStreamerMSE>, Ref<SourceBufferPrivateGStreamer>, MediaPlayerPrivateGStreamerMSE&);
     virtual ~AppendPipeline();

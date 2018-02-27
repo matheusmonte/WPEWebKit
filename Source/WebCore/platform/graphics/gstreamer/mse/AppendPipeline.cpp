@@ -57,8 +57,6 @@ static const char* dumpAppendState(AppendPipeline::AppendState appendState)
         return "NotStarted";
     case AppendPipeline::AppendState::Ongoing:
         return "Ongoing";
-    case AppendPipeline::AppendState::KeyNegotiation:
-        return "KeyNegotiation";
     case AppendPipeline::AppendState::DataStarve:
         return "DataStarve";
     case AppendPipeline::AppendState::Sampling:
@@ -339,20 +337,7 @@ void AppendPipeline::handleNeedContextSyncMessage(GstMessage* message)
     if (m_appendState == AppendState::Invalid)
         return;
 
-    if (!g_strcmp0(contextType, "drm-preferred-decryption-system-id")) {
-        if (WTF::isMainThread())
-            transitionTo(AppendState::KeyNegotiation, true);
-        else {
-            GstStructure* structure = gst_structure_new("transition-main-thread", "transition", G_TYPE_INT, AppendState::KeyNegotiation, nullptr);
-            GstMessage* message = gst_message_new_application(GST_OBJECT(m_demux.get()), structure);
-            if (gst_bus_post(m_bus.get(), message)) {
-                GST_TRACE("transition-main-thread KeyNegotiation sent to the bus");
-                m_appendStateTransitionCondition.wait(m_appendStateTransitionLock);
-            }
-        }
-    }
-
-    // MediaPlayerPrivateGStreamerBase will take care of setting up encryption.
+    // MediaPlayerPrivateGStreamerBase will take care of setting up encryption if needed.
     if (m_playerPrivate)
         m_playerPrivate->handleSyncMessage(message);
 }
@@ -429,9 +414,6 @@ void AppendPipeline::handleElementMessage(GstMessage* message)
     const GstStructure* structure = gst_message_get_structure(message);
     GST_TRACE("%s message from %s", gst_structure_get_name(structure), GST_MESSAGE_SRC_NAME(message));
     if (m_playerPrivate && gst_structure_has_name(structure, "drm-key-needed")) {
-        if (m_appendState != AppendPipeline::AppendState::KeyNegotiation)
-            setAppendState(AppendPipeline::AppendState::KeyNegotiation);
-
         GST_DEBUG("sending drm-key-needed message from %s to the player", GST_MESSAGE_SRC_NAME(message));
         GRefPtr<GstEvent> event;
         gst_structure_get(structure, "event", GST_TYPE_EVENT, &event.outPtr(), nullptr);
@@ -465,7 +447,7 @@ void AppendPipeline::handleAppsrcNeedDataReceived()
         return;
     }
 
-    ASSERT(m_appendState == AppendState::KeyNegotiation || m_appendState == AppendState::Ongoing || m_appendState == AppendState::Sampling);
+    ASSERT(m_appendState == AppendState::Ongoing || m_appendState == AppendState::Sampling);
     ASSERT(!m_appsrcNeedDataReceived);
 
     GST_TRACE("received need-data from appsrc");
@@ -523,8 +505,7 @@ void AppendPipeline::setAppendState(AppendState newAppendState)
     // NotStarted-->Ongoing-->DataStarve-->NotStarted
     //           |         |            `->Aborting-->NotStarted
     //           |         `->Sampling-···->Sampling-->LastSample-->NotStarted
-    //           |         |                                     `->Aborting-->NotStarted
-    //           |         `->KeyNegotiation-->Ongoing-->[...]
+    //           |                                               `->Aborting-->NotStarted
     //           `->Aborting-->NotStarted
     AppendState oldAppendState = m_appendState;
     AppendState nextAppendState = AppendState::Invalid;
@@ -561,22 +542,8 @@ void AppendPipeline::setAppendState(AppendState newAppendState)
             break;
         }
         break;
-    case AppendState::KeyNegotiation:
-        switch (newAppendState) {
-        case AppendState::Ongoing:
-            ok = true;
-            mustCheckEndOfAppend = true;
-            break;
-        case AppendState::Invalid:
-            ok = true;
-            break;
-        default:
-            break;
-        }
-        break;
     case AppendState::Ongoing:
         switch (newAppendState) {
-        case AppendState::KeyNegotiation:
         case AppendState::Sampling:
         case AppendState::Invalid:
             ok = true;
@@ -805,10 +772,6 @@ void AppendPipeline::checkEndOfAppend()
 void AppendPipeline::appsinkNewSample(GstSample* sample)
 {
     ASSERT(WTF::isMainThread());
-
-    // If we were in KeyNegotiation but samples are coming, assume we're already OnGoing
-    if (m_appendState == AppendState::KeyNegotiation)
-        setAppendState(AppendState::Ongoing);
 
     // Ignore samples if we're not expecting them. Refuse processing if we're in Invalid state.
     if (m_appendState != AppendState::Ongoing && m_appendState != AppendState::Sampling) {
@@ -1335,7 +1298,6 @@ bool AppendPipeline::dispatchPendingDecryptionStructure()
 {
     ASSERT(m_decryptor);
     ASSERT(m_pendingDecryptionStructure);
-    ASSERT(m_appendState == AppendState::KeyNegotiation);
 
     // Release the m_pendingDecryptionStructure object since
     // gst_event_new_custom() takes over ownership of it.
@@ -1360,15 +1322,11 @@ bool AppendPipeline::dispatchPendingDecryptionStructure()
 bool AppendPipeline::dispatchDecryptionStructure(GUniquePtr<GstStructure>&& structure)
 {
     bool returnValue = false;
-    if (m_appendState == AppendState::KeyNegotiation) {
-        GST_TRACE("append pipeline %p in key negotiation", this);
-        m_pendingDecryptionStructure = WTFMove(structure);
-        if (m_decryptor)
-            returnValue = dispatchPendingDecryptionStructure();
-        else
-            GST_TRACE("no decryptor yet, waiting for it");
-    } else
-        GST_TRACE("append pipeline %p not in key negotiation", this);
+    m_pendingDecryptionStructure = WTFMove(structure);
+    if (m_decryptor)
+        returnValue = dispatchPendingDecryptionStructure();
+    else
+        GST_TRACE("no decryptor yet, waiting for it");
     return returnValue;
 }
 #endif

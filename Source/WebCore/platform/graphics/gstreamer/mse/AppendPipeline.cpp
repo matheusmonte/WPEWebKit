@@ -1168,6 +1168,7 @@ void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerS
         // This is known to be an issue with YouTube WebM files containing Opus audio as of YTTV2018.
         m_parser = createOptionalParserForFormat(currentSrcPad.get());
         if (m_parser) {
+            GST_INFO("created parser %s", GST_ELEMENT_NAME(m_parser.get()));
             gst_bin_add(GST_BIN(m_pipeline.get()), m_parser.get());
             gst_element_sync_state_with_parent(m_parser.get());
 
@@ -1176,11 +1177,12 @@ void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerS
 
             gst_pad_link(currentSrcPad.get(), parserSinkPad.get());
             currentSrcPad = parserSrcPad;
-        }
+        } else
+            GST_INFO("no parser");
 
 #if ENABLE(ENCRYPTED_MEDIA)
         if (m_decryptor) {
-            GST_TRACE("we have a decryptor");
+            GST_INFO("we have a decryptor %s", GST_ELEMENT_NAME(m_decryptor.get()));
             gst_object_ref(m_decryptor.get());
             gst_bin_add(GST_BIN(m_pipeline.get()), m_decryptor.get());
             gst_element_sync_state_with_parent(m_decryptor.get());
@@ -1190,7 +1192,8 @@ void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerS
 
             gst_pad_link(currentSrcPad.get(), decryptorSinkPad.get());
             currentSrcPad = decryptorSrcPad;
-        }
+        } else
+            GST_INFO("we don't have a decryptor");
 #endif
 
         gst_pad_link(currentSrcPad.get(), appsinkSinkPad.get());

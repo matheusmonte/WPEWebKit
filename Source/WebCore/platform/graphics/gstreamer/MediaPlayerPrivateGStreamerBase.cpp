@@ -397,6 +397,88 @@ bool MediaPlayerPrivateGStreamerBase::handleSyncMessage(GstMessage* message)
     }
 #endif // USE(GSTREAMER_GL)
 
+#if ENABLE(ENCRYPTED_MEDIA)
+    if (!g_strcmp0(contextType, "drm-preferred-decryption-system-id")) {
+        if (isMainThread()) {
+            GST_ERROR("can't handle drm-preferred-decryption-system-id need context message in the main thread");
+            ASSERT_NOT_REACHED();
+            return false;
+        }
+        GST_DEBUG("handling drm-preferred-decryption-system-id need context message");
+        LockHolder lock(m_protectionMutex);
+        std::pair<Vector<GRefPtr<GstEvent>>, Vector<String>> streamEncryptionInformation = GStreamerEMEUtilities::extractEventsAndSystemsFromMessage(message);
+        GST_TRACE("found %" G_GSIZE_FORMAT " protection events", streamEncryptionInformation.first.size());
+        InitData concatenatedInitDataChunks;
+        unsigned concatenatedInitDataChunksNumber = 0;
+        String eventKeySystemIdString;
+#if USE(OPENCDM)
+        HashMap<String, GstEventSeqNum> keySystemProtectionEventMap;
+#endif
+
+        for (auto& event : streamEncryptionInformation.first) {
+            GST_TRACE("handling protection event %u", GST_EVENT_SEQNUM(event.get()));
+            const char* eventKeySystemId = nullptr;
+            GstBuffer* data = nullptr;
+            gst_event_parse_protection(event.get(), &eventKeySystemId, &data, nullptr);
+
+            GstMapInfo mapInfo;
+            if (!gst_buffer_map(data, &mapInfo, GST_MAP_READ)) {
+                GST_WARNING("cannot map %s protection data", eventKeySystemId);
+                break;
+            }
+            GST_TRACE("appending init data for %s of size %" G_GSIZE_FORMAT, eventKeySystemId, mapInfo.size);
+            GST_MEMDUMP("init data", reinterpret_cast<const uint8_t*>(mapInfo.data), mapInfo.size);
+            concatenatedInitDataChunks.append(reinterpret_cast<const uint8_t*>(mapInfo.data), mapInfo.size);
+            ++concatenatedInitDataChunksNumber;
+            eventKeySystemIdString = eventKeySystemId;
+            if (streamEncryptionInformation.second.contains(eventKeySystemId)) {
+                GST_TRACE("considering init data reported for %s", eventKeySystemId);
+                ASSERT(!m_reportedProtectionEvents.contains(GST_EVENT_SEQNUM(event.get())));
+                m_reportedProtectionEvents.append(GST_EVENT_SEQNUM(event.get()));
+#if USE(OPENCDM)
+                keySystemProtectionEventMap.add(eventKeySystemId, GST_EVENT_SEQNUM(event.get()));
+#endif
+            }
+            gst_buffer_unmap(data, &mapInfo);
+        }
+
+        if (!concatenatedInitDataChunksNumber)
+            return false;
+
+        if (concatenatedInitDataChunksNumber > 1)
+            eventKeySystemIdString = emptyString();
+
+        RunLoop::main().dispatch([weakThis = m_weakPtrFactory.createWeakPtr(*this), eventKeySystemIdString, initData = concatenatedInitDataChunks] {
+            if (!weakThis)
+                return;
+
+            GST_DEBUG("scheduling initializationDataEncountered event for %s with concatenated init datas size of %" G_GSIZE_FORMAT, eventKeySystemIdString.utf8().data(), initData.sizeInBytes());
+            GST_MEMDUMP("init datas", reinterpret_cast<const uint8_t*>(initData.latin1().data()), initData.sizeInBytes());
+            weakThis->m_player->initializationDataEncountered(ASCIILiteral("cenc"), ArrayBuffer::create(reinterpret_cast<const uint8_t*>(initData.latin1().data()), initData.sizeInBytes()));
+        });
+
+        GST_INFO("waiting for a CDM instance");
+        m_protectionCondition.waitFor(m_protectionMutex, Seconds(4), [this] {
+            return this->m_cdmInstance;
+        });
+        if (m_cdmInstance && !m_cdmInstance->keySystem().isEmpty()) {
+            const char* preferredKeySystemUuid = GStreamerEMEUtilities::keySystemToUuid(m_cdmInstance->keySystem());
+            GST_INFO("working with %s, continuing with %s on %s", m_cdmInstance->keySystem().utf8().data(), preferredKeySystemUuid, GST_MESSAGE_SRC_NAME(message));
+
+            GRefPtr<GstContext> context = adoptGRef(gst_context_new("drm-preferred-decryption-system-id", FALSE));
+            GstStructure* contextStructure = gst_context_writable_structure(context.get());
+            gst_structure_set(contextStructure, "decryption-system-id", G_TYPE_STRING, preferredKeySystemUuid, nullptr);
+            gst_element_set_context(GST_ELEMENT(GST_MESSAGE_SRC(message)), context.get());
+#if USE(OPENCDM)
+            mapProtectionEventToInitData(concatenatedInitDataChunks, keySystemProtectionEventMap.get(preferredKeySystemUuid));
+#endif
+        } else
+            GST_WARNING("no proper CDM instance attached");
+
+        return true;
+    }
+#endif // ENABLE(ENCRYPTED_MEDIA)
+
     return false;
 }
 

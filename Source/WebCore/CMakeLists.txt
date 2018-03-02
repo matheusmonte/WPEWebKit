@@ -19,7 +19,6 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/applepay"
     "${WEBCORE_DIR}/Modules/cache"
     "${WEBCORE_DIR}/Modules/credentials"
-    "${WEBCORE_DIR}/Modules/debughelper"
     "${WEBCORE_DIR}/Modules/encryptedmedia"
     "${WEBCORE_DIR}/Modules/encryptedmedia/legacy"
     "${WEBCORE_DIR}/Modules/entriesapi"
@@ -159,7 +158,6 @@ set(WebCore_IDL_INCLUDES
     Modules/airplay
     Modules/cache
     Modules/credentials
-    Modules/debughelper
     Modules/encryptedmedia/legacy
     Modules/entriesapi
     Modules/fetch
@@ -221,8 +219,6 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/entriesapi/FileSystemEntryCallback.idl
     Modules/entriesapi/FileSystemFileEntry.idl
     Modules/entriesapi/HTMLInputElementEntriesAPI.idl
-
-    Modules/debughelper/DebugBreakpoint.idl
 
     Modules/fetch/DOMWindowFetch.idl
     Modules/fetch/FetchBody.idl
@@ -999,8 +995,6 @@ set(WebCore_SOURCES
     Modules/entriesapi/FileSystemEntry.cpp
     Modules/entriesapi/FileSystemFileEntry.cpp
     Modules/entriesapi/HTMLInputElementEntriesAPI.cpp
-
-    Modules/debughelper/DebugBreakpoint.cpp
 
     Modules/fetch/DOMWindowFetch.cpp
     Modules/fetch/FetchBody.cpp

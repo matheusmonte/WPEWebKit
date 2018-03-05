@@ -380,6 +380,7 @@ bool RenderImage::hasNonBitmapImage() const
 
 void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
+    printf("Rendereing RenderImage.cpp ---- RenderImage::paintReplaced ");
     LayoutSize contentSize = this->contentSize();
 
     GraphicsContext& context = paintInfo.context();
@@ -433,6 +434,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
 #if ENABLE(CSS_IMAGE_ORIENTATION)
                 orientationDescription.setImageOrientationEnum(style().imageOrientation());
 #endif
+                printf("Entering on DrawImage Method from RenderImage");
                 context.drawImage(*image, snapRectToDevicePixels(LayoutRect(paintOffset + imageOffset, imageSize), deviceScaleFactor), orientationDescription);
                 errorPictureDrawn = true;
             }
